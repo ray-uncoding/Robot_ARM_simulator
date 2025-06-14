@@ -39,7 +39,7 @@ gesture_recognizer = GestureRecognizer(
 cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
-    print("錯誤：無法開啟攝影機。手勢控制將被禁用。")
+    print("Error: Cannot open camera. Gesture control will be disabled.")
 
 # ANGLE_ADJUSTMENT_STEP = np.deg2rad(2.5)  # Degrees per gesture command (used for discrete mode)
 DISCRETE_ANGLE_STEP = np.deg2rad(2.5) # For discrete mode, if used
@@ -64,96 +64,119 @@ for s in sliders:
 # Initial Arm Drawing
 vis.draw_arm(init_angles)
 
+# Helper functions for angle calculation
+def _calculate_new_angle_relative_continuous(current_angle, control_value, angle_step_factor, full_circle_radians=np.pi * 2):
+    """Calculates new angle for relative continuous control."""
+    angle_change = control_value * full_circle_radians * angle_step_factor
+    return current_angle + angle_change
+
+def _calculate_new_angle_absolute(control_value, slider_min, slider_max):
+    """Calculates new angle for absolute control.
+    Assumes control_value is normalized (0 to 1).
+    Maps: top of active zone (normalized_y=0) -> slider_max, bottom (normalized_y=1) -> slider_min.
+    """
+    return slider_max - (control_value * (slider_max - slider_min))
+
+def _calculate_new_angle_discrete(current_angle, action, discrete_step):
+    """Calculates new angle for discrete control."""
+    if action == "increase":
+        return current_angle + discrete_step
+    elif action == "decrease":
+        return current_angle - discrete_step
+    return current_angle
+
+# Function to process gestures and update arm
+def handle_gesture_input(gest_recognizer, camera_capture, arm_sliders, discrete_angle_step_val):
+    """Handles gesture input, calculates new joint angles, and updates sliders.
+    Returns the annotated image frame for display.
+    """
+    frame_for_display = None
+    if not camera_capture.isOpened():
+        return None
+
+    ret, frame = camera_capture.read()
+    if not ret:
+        # print("Unable to receive frame (stream end?).") # Or log
+        return None
+
+    selected_joint, action, value, annotated_image = gest_recognizer.get_command(frame)
+    frame_for_display = annotated_image
+
+    if selected_joint is not None and action is not None:
+        try:
+            joint_idx = selected_joint - 1 # selected_joint is 1-based
+            if 0 <= joint_idx < len(arm_sliders):
+                current_slider = arm_sliders[joint_idx]
+                current_angle = current_slider.val
+                new_angle = current_angle
+
+                control_mode = gest_recognizer.control_mode
+                
+                if control_mode == "relative_continuous" and action == "set_angle_continuous":
+                    new_angle = _calculate_new_angle_relative_continuous(current_angle, value, gest_recognizer.angle_step_continuous)
+                elif control_mode == "absolute" and action == "set_angle_absolute":
+                    new_angle = _calculate_new_angle_absolute(value, current_slider.valmin, current_slider.valmax)
+                elif control_mode == "discrete": # Actions "increase", "decrease"
+                    new_angle = _calculate_new_angle_discrete(current_angle, action, discrete_angle_step_val)
+
+                new_angle = np.clip(new_angle, current_slider.valmin, current_slider.valmax)
+                
+                if abs(new_angle - current_angle) > 1e-5: # Check if there's a significant change
+                    current_slider.set_val(new_angle)
+        except TypeError:
+            # print(f"Debug: Selected joint is None or not an int: {selected_joint}")
+            pass
+        except IndexError:
+            # print(f"Debug: Joint index out of range: {joint_idx if 'joint_idx' in locals() else 'N/A'}")
+            pass
+    return frame_for_display
+
+# Function to display frame and check for exit conditions
+def display_updates_and_check_exit(figure_obj, frame_to_display, camera_capture, gest_recognizer_dims):
+    """Displays the processed frame, updates matplotlib, and checks for exit conditions.
+    Returns True if the program should quit, False otherwise.
+    """
+    if frame_to_display is not None:
+        cv2.imshow('Gesture Control', frame_to_display)
+    elif camera_capture.isOpened(): # Placeholder if camera is open but frame processing failed
+        h_dim = gest_recognizer_dims.h
+        w_dim = gest_recognizer_dims.w
+        placeholder_frame = np.zeros((h_dim, w_dim, 3), dtype=np.uint8)
+        cv2.putText(placeholder_frame, "No camera feed / Error", (50, h_dim // 2), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.imshow('Gesture Control', placeholder_frame)
+
+    plt.pause(0.01) # Process Matplotlib events and update plot
+
+    quit_key_pressed = False
+    # Check if OpenCV window is visible before checking for key press
+    if cv2.getWindowProperty('Gesture Control', cv2.WND_PROP_VISIBLE) >= 1:
+        if (cv2.waitKey(1) & 0xFF) == ord('q'):
+            quit_key_pressed = True
+    
+    if quit_key_pressed or not plt.fignum_exists(figure_obj.number):
+        return True # Should quit
+    return False # Should continue
+
 # Main Application Loop
 plt.ion()
 fig.show()
 
-print("啟動主迴圈。在 OpenCV 視窗中按下 'q' 鍵，或關閉 Matplotlib 視窗以退出。")
+print("Starting main loop. Press 'q' in the OpenCV window or close the Matplotlib window to exit.")
 
 try:
     while True:
-        frame_for_display = None
-
-        # Gesture Recognition
-        if cap.isOpened():
-            ret, frame = cap.read()
-            if ret:
-                # The new get_command returns joint, action, value, and annotated_image
-                selected_joint, action, value, annotated_image = gesture_recognizer.get_command(frame)
-                frame_for_display = annotated_image
-                
-                # selected_joint_str, action_str = gesture_recognizer.get_command() # Old call
-
-                if selected_joint is not None:
-                    try:
-                        joint_idx = selected_joint - 1 # selected_joint is already an int or None
-                        if 0 <= joint_idx < 6:
-                            current_slider = sliders[joint_idx]
-                            current_angle = current_slider.val
-                            new_angle = current_angle
-
-                            if gesture_recognizer.control_mode == "relative_continuous" and action == "set_angle_continuous":
-                                angle_change = value * np.pi * 2 
-                                new_angle += angle_change * gesture_recognizer.angle_step_continuous 
-                            
-                            elif gesture_recognizer.control_mode == "absolute" and action == "set_angle_absolute":
-                                # 'value' from gesture_api is a normalized Y position (0 to 1 within active zone)
-                                # Map this normalized value to the slider's min and max range
-                                slider_min = current_slider.valmin
-                                slider_max = current_slider.valmax
-                                # We want hand moving UP (smaller Y, smaller normalized_y) to correspond to slider_max (or min, depending on convention)
-                                # Current: normalized_y = 0 for top of active zone, 1 for bottom.
-                                # Let's map: top of active zone (normalized_y=0) -> slider_max, bottom (normalized_y=1) -> slider_min
-                                new_angle = slider_max - (value * (slider_max - slider_min))
-                                # Or, if hand up = min angle: new_angle = slider_min + (value * (slider_max - slider_min))
-
-                            elif gesture_recognizer.control_mode == "discrete":
-                                if action == "increase":
-                                    new_angle += DISCRETE_ANGLE_STEP
-                                elif action == "decrease":
-                                    new_angle -= DISCRETE_ANGLE_STEP
-                            
-                            new_angle = np.clip(new_angle, current_slider.valmin, current_slider.valmax)
-                            
-                            if abs(new_angle - current_angle) > 1e-5: # Check if there's a change
-                                current_slider.set_val(new_angle)
-                                # vis.draw_arm(np.array([s.val for s in sliders])) # Already handled by slider.on_changed
-
-                    except TypeError: # Catches if selected_joint is None and we try to use it as index
-                        # print(f"Debug: Selected joint is None or not an int: {selected_joint}")
-                        pass 
-                    except IndexError:
-                        # print(f"Debug: Joint index out of range: {joint_idx}")
-                        pass
-            else:
-                # print("無法接收影像幀（影像流結束？）。") # Keep if useful, or remove if too noisy
-                pass # Continue running, sliders will still work
-
-        # Display Camera Feed
-        if frame_for_display is not None:
-            cv2.imshow('手勢控制 (Gesture Control)', frame_for_display)
-        elif cap.isOpened(): # Placeholder if camera is open but frame processing failed
-            placeholder_frame = np.zeros((gesture_recognizer.h, gesture_recognizer.w, 3), dtype=np.uint8)
-            cv2.putText(placeholder_frame, "No camera feed / Error", (50, gesture_recognizer.h // 2), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            cv2.imshow('手勢控制 (Gesture Control)', placeholder_frame)
-
-        # Matplotlib Update
-        plt.pause(0.01)
-
-        # Exit Conditions
-        quit_key_pressed = False
-        if cv2.getWindowProperty('手勢控制 (Gesture Control)', cv2.WND_PROP_VISIBLE) >= 1:
-            if (cv2.waitKey(1) & 0xFF) == ord('q'):
-                quit_key_pressed = True
+        # Gesture Recognition and Arm Update
+        processed_frame = handle_gesture_input(gesture_recognizer, cap, sliders, DISCRETE_ANGLE_STEP)
         
-        if quit_key_pressed or not plt.fignum_exists(fig.number):
-            print("偵測到退出指令，準備關閉...")
+        # Display Camera Feed, Matplotlib updates, and Check Exit Conditions
+        if display_updates_and_check_exit(fig, processed_frame, cap, gesture_recognizer):
+            print("Exit command detected, preparing to close...")
             break
             
 except KeyboardInterrupt:
-    print("偵測到使用者中斷 (Ctrl+C)。")
+    print("User interrupt detected (Ctrl+C).")
 finally:
-    print("正在清理資源...")
+    print("Cleaning up resources...")
     # Gesture Recognizer Cleanup
     if cap.isOpened():
         gesture_recognizer.release()
@@ -162,5 +185,5 @@ finally:
     if plt.fignum_exists(fig.number):
          plt.close(fig)
     plt.ioff()
-    gesture_recognizer.release() # Ensure mediapipe resources are released
-    print("程式已結束。")
+    # gesture_recognizer.release() # Ensure mediapipe resources are released - This was duplicated, removing one.
+    print("Program finished.")
