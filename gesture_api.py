@@ -103,29 +103,32 @@ class GestureRecognizer:
             if not self.left_control_active:
                 self.left_control_active = True
                 self.left_initial_y = current_mcp_y
-                self.left_initial_x = current_mcp_x
+                self.left_initial_x = current_mcp_x # Added for X-axis control
                 self.action_internal = "engage_control"
                 # Ensure self.selected_joint_internal is handled if None for f-string
                 self.debug_text = f"L:Engaged J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'}"
-                self.debug_text_color = (0,255,0)
-            else: 
+                self.debug_text_color = (0,255,0) # Green for engaged
+            else: # Control is active
                 delta_y = current_mcp_y - self.left_initial_y
+                # delta_x = current_mcp_x - self.left_initial_x # For X-axis control if needed
+
                 if abs(delta_y) > self.sensitivity_threshold:
-                    if delta_y > 0: 
-                        self.action_internal = "set_angle_continuous"
-                        self.value_internal = 1.0 
-                        self.debug_text = f"L:Controlling J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'} (Down)"
-                    else: 
-                        self.action_internal = "set_angle_continuous"
-                        self.value_internal = -1.0 
-                        self.debug_text = f"L:Controlling J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'} (Up)"
-                    self.debug_text_color = (0,255,255)
-                else: 
+                    self.action_internal = "set_angle_continuous"
+                    if delta_y > 0: # Hand moved DOWN (Y increased in screen coordinates)
+                        self.value_internal = -1.0 # Corrected: Downward movement should decrease angle
+                        self.debug_text = f"L:Ctrl Down (Dec) J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'}"
+                    else: # Hand moved UP (Y decreased in screen coordinates)
+                        self.value_internal = 1.0  # Corrected: Upward movement should increase angle
+                        self.debug_text = f"L:Ctrl Up (Inc) J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'}"
+                    # self.left_initial_y = current_mcp_y # Optional: reset initial_y for continuous relative updates from new point
+                    # self.left_initial_x = current_mcp_x # Optional
+                    self.debug_text_color = (0,255,255) # Cyan for active control
+                else: # Movement within deadzone
                     self.action_internal = "hold"
                     self.value_internal = 0.0
                     self.debug_text = f"L:Hold J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'}"
-                    self.debug_text_color = (255,150,0)
-        elif gesture_str == '5': 
+                    self.debug_text_color = (255,150,0) # Orange for hold
+        elif gesture_str == '5': # Palm open for disengage
             if self.left_control_active:
                 self.left_control_active = False
                 self.action_internal = "disengage_control"
@@ -184,18 +187,22 @@ class GestureRecognizer:
                 self.debug_text_color = (0,0,255)
 
     def _handle_left_hand_discrete(self, gesture_str):
-        if gesture_str == '0': 
+        if gesture_str == '0': # Fist or Thumbs Up
             self.action_internal = "increase"
-            self.debug_text = f"L:Increase J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'}"
+            self.debug_text = f"L:Increase J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'} (Fist/ThumbUp)"
             self.debug_text_color = (0,255,0)
-        elif gesture_str == '6': 
+        elif gesture_str == '1': # Changed from '6' (Shaka) to '1' (Index Finger Up)
             self.action_internal = "decrease"
-            self.debug_text = f"L:Decrease J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'}"
-            self.debug_text_color = (0,255,0)
-        elif gesture_str == '5': 
+            self.debug_text = f"L:Decrease J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'} (IndexUp)"
+            self.debug_text_color = (0,255,0) # Green for active command
+        elif gesture_str == '5': # Palm open
             self.action_internal = "stop_discrete" 
-            self.debug_text = f"L:Stop J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'}"
+            self.debug_text = f"L:Stop J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'} (Palm)"
             self.debug_text_color = (0,0,255)
+        # else: # Optional: handle unrecognized gestures in discrete mode
+            # self.action_internal = None # Or "hold_discrete"
+            # self.debug_text = f"L:Discrete Hold J{self.selected_joint_internal if self.selected_joint_internal is not None else 'N/A'}"
+            # self.debug_text_color = (255,150,0) 
 
     def get_command(self, frame):
         # Flip the frame horizontally for a mirror effect
@@ -318,8 +325,17 @@ class GestureRecognizer:
         # Display debug text and selected joint/action
         cv2.putText(image, self.debug_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, self.debug_text_color, 2)
         
-        # Display general instructions
-        instruction_text = "R:1-6 Select Joint | L-Fist:Control | L-Palm:Stop"
+        # Display general instructions based on the current control mode
+        instruction_text = ""
+        if self.control_mode == "relative_continuous":
+            instruction_text = "R:1-6 Sel | L-Fist:Ctrl, L-Palm:Stop"
+        elif self.control_mode == "absolute":
+            instruction_text = "R:1-6 Sel | L-Fist:SetPos, L-Palm:Stop"
+        elif self.control_mode == "discrete":
+            instruction_text = "R:1-6 Sel | L-Fist/Up:INC, L-Idx:DEC, L-Palm:STOP"
+        else:
+            instruction_text = "R:1-6 Select Joint | L:Control"
+
         cv2.putText(image, instruction_text, (10, self.h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
         
         # Return the recognized command, the value (if any), and the annotated image

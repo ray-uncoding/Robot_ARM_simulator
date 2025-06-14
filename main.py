@@ -36,15 +36,15 @@ CONTROL_MODE = "absolute"
 # --- Parameters for "relative_continuous" mode ---
 # Sensitivity for deadzone in relative continuous control (pixels).
 # Movement below this threshold will be ignored.
-SENSITIVITY_THRESHOLD = 15
+SENSITIVITY_THRESHOLD = 5
 # Normalized angle step for relative continuous control.
 # This factor scales the hand movement to angle change.
 # (e.g., 0.1 means a full hand sweep might correspond to 0.1 * 2*pi radians)
-ANGLE_STEP_CONTINUOUS = 0.4
+ANGLE_STEP_CONTINUOUS = 0.025
 
 # --- Parameters for "discrete" mode ---
 # Angle step in radians for each "increase" or "decrease" gesture.
-DISCRETE_ANGLE_STEP = np.deg2rad(2.5) # e.g., 2.5 degrees per step
+DISCRETE_ANGLE_STEP = np.deg2rad(4.5) # e.g., 2.5 degrees per step
 
 # ==============================================================================
 # INITIALIZATION
