@@ -1,6 +1,6 @@
 ![範例 GIF](img/clip0615.gif)
 
-[View English Documentation (查看英文文档)](./README_en.md)
+[View English Documentation (查看英文文件)](./README_en.md)
 
 # 手勢控制機械臂模擬器
 
