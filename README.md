@@ -205,11 +205,13 @@
 ```
 Robot_ARM_simulator/
 ├── main.py                 # 主要應用程式腳本
-├── gesture_api.py          # 處理手勢辨識和攝影機畫面
-├── kinematics.py           # 機械臂運動學計算
-├── visualization.py        # 使用 Matplotlib 的 3D 機械臂視覺化
+├── src/
+│   ├── gesture_api.py      # 處理手勢辨識和攝影機畫面
+│   ├── kinematics.py       # 機械臂運動學計算
+│   └── visualization.py    # 使用 Matplotlib 的 3D 機械臂視覺化
 ├── requirements.txt        # 專案依賴套件
-└── README.md               # 本檔案 (說明文件)
+├── README.md               # 本檔案 (中文說明文件)
+└── README_en.md            # 英文說明文件
 ```
 
 ## 疑難排解

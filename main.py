@@ -1,10 +1,10 @@
 import numpy as np
-from kinematics import SixAxisArmKinematics
-from visualization import ArmVisualizer
+from src.kinematics import SixAxisArmKinematics
+from src.visualization import ArmVisualizer
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 import cv2
-from gesture_api import GestureRecognizer
+from src.gesture_api import GestureRecognizer
 
 # ==============================================================================
 # ROBOT ARM CONFIGURATION (User may not need to change these frequently)

@@ -18,13 +18,14 @@ This project allows you to control a simulated robotic arm using hand gestures. 
 
 ```
 Robot_ARM_simulator/
-├── gesture_api.py       # Handles gesture recognition
-├── kinematics.py        # Calculates arm kinematics
 ├── main.py              # Main application script
-├── visualization.py     # Visualizes the robotic arm
+├── src/
+│   ├── gesture_api.py   # Handles gesture recognition
+│   ├── kinematics.py    # Calculates arm kinematics
+│   └── visualization.py # Visualizes the robotic arm
 ├── requirements.txt     # Project dependencies
-├── README.md            # This file (English documentation)
-└── README_zh-CN.md      # Chinese documentation
+├── README.md            # Chinese documentation
+└── README_en.md         # This file (English documentation)
 ```
 
 ## Setup and Installation
