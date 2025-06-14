@@ -1,6 +1,6 @@
 ![範例 GIF](img/clip0615.gif)
 
-[View English Documentation (查看英文文档)](./README.md)
+[View English Documentation (查看英文文档)](./README_en.md)
 
 # 手勢控制機械臂模擬器
 
@@ -171,7 +171,7 @@
 
 ## 理解與修改程式碼 (初學者適用)
 
-本專案分為數個 Python 檔案。以下是簡單的說明：
+本專案分为數個 Python 檔案。以下是簡單的說明：
 
 *   **`main.py`：** 這是應用程式的主要「大腦」。
     *   它設定機械臂、攝影機和顯示視窗。
